@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Regular Triangular Pyramid</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        dark: '#0f172a', // Slate 900
+                        panel: '#1e293b', // Slate 800
+                        primary: '#3b82f6', // Blue 500
+                        primaryLight: '#60a5fa', // Blue 400
+                        success: '#22c55e', // Green 500
+                        danger: '#ef4444', // Red 500
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; background-color: #0f172a; color: white; }
+        .hotspot {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+            z-index: 10;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            transition: background-color 0.3s;
+        }
+        .hotspot.active { background-color: #ef4444; } /* Red */
+        .hotspot.completed { background-color: #22c55e; animation: none; } /* Green */
+        
+        /* Pulse animation for active hotspots */
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        .hotspot.active { animation: pulse-red 2s infinite; }
+
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        .overlay-ui { position: absolute; z-index: 20; }
+        
+        .vocab-link { color: #60a5fa; text-decoration: underline; cursor: pointer; font-weight: bold; }
+        .vocab-link:hover { color: #93c5fd; }
+
+        /* Custom Scrollbar for list */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #3b82f6; border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-dark text-white h-screen w-screen relative">
+
+    <!-- Screen 1: Login -->
+    <div id="screen-1" class="screen flex flex-col items-center justify-center h-full w-full absolute top-0 left-0 z-50 bg-dark">
+        <div class="bg-panel p-8 rounded-xl shadow-2xl border border-primaryLight/30 w-full max-w-md text-center">
+            <h1 class="text-3xl font-bold text-primaryLight mb-6 uppercase tracking-wider">Regular Triangular Pyramid</h1>
+            <div class="space-y-4">
+                <input type="text" id="student-name" placeholder="Student Name" class="w-full bg-dark border border-gray-600 rounded p-3 text-white focus:outline-none focus:border-primary">
+                <input type="text" id="student-id" placeholder="Student ID" class="w-full bg-dark border border-gray-600 rounded p-3 text-white focus:outline-none focus:border-primary">
+                <input type="text" id="student-class" placeholder="Class" class="w-full bg-dark border border-gray-600 rounded p-3 text-white focus:outline-none focus:border-primary">
+                <button onclick="startApp()" class="w-full bg-primary hover:bg-blue-600 text-white font-bold py-3 px-4 rounded mt-4 transition duration-300">Start</button>
+            </div>
+            <p id="login-error" class="text-danger mt-2 text-sm hidden">Please fill in all fields.</p>
+        </div>
+        
+        <!-- Teacher Dashboard Access Link -->
+        <div class="absolute bottom-4 right-6">
+            <button onclick="openTeacherDashboard()" class="text-gray-500 hover:text-primary transition flex items-center text-sm font-semibold">
+                <i class="fas fa-lock mr-2"></i> Teacher Access
+            </button>
+        </div>
+    </div>
+
+    <!-- Screen 8: Teacher Dashboard -->
+    <div id="screen-dashboard" class="screen hidden flex flex-col h-full w-full absolute top-0 left-0 z-[60] bg-dark p-6 overflow-hidden">
+        <div class="max-w-6xl mx-auto w-full h-full flex flex-col">
+            <div class="flex justify-between items-center mb-6 shrink-0">
+                <h1 class="text-3xl font-bold text-primaryLight flex items-center">
+                    <i class="fas fa-chalkboard-teacher mr-3"></i> Teacher's Dashboard
+                </h1>
+                <button onclick="closeTeacherDashboard()" class="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded transition flex items-center">
+                    <i class="fas fa-arrow-left mr-2"></i> Back to Login
+                </button>
+            </div>
+            
+            <div class="bg-panel rounded-xl shadow-xl border border-gray-700 overflow-hidden flex flex-col flex-grow">
+                <div class="overflow-y-auto w-full flex-grow">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="bg-slate-700 text-primaryLight sticky top-0 z-10">
+                            <tr>
+                                <th class="p-4 border-b border-gray-600 font-bold">Student Name</th>
+                                <th class="p-4 border-b border-gray-600 font-bold">Student ID</th>
+                                <th class="p-4 border-b border-gray-600 font-bold">Class</th>
+                                <th class="p-4 border-b border-gray-600 font-bold">Time</th>
+                                <th class="p-4 border-b border-gray-600 font-bold">Score</th>
+                                <th class="p-4 border-b border-gray-600 font-bold">Words to Review</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dashboard-tbody" class="divide-y divide-gray-700">
+                            <!-- Data injected here via Firebase -->
+                            <tr>
+                                <td colspan="6" class="p-6 text-center text-gray-400">Loading data...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main 3D Container (Shared for S2, S3, S4, S6) -->
+    <div id="3d-screen-container" class="hidden w-full h-full relative">
+        <div id="canvas-container"></div>
+        <div id="hotspot-container" class="absolute top-0 left-0 w-full h-full pointer-events-none"></div>
+        
+        <!-- UI Overlay for 3D screens -->
+        <div class="overlay-ui bottom-4 left-0 w-full text-center text-gray-400 text-sm pointer-events-none">
+            <i class="fas fa-mouse"></i> Kéo để xoay | Lăn để zoom | Nhấn Shift + Kéo để di chuyển
+        </div>
+        
+        <div class="overlay-ui top-4 right-4">
+            <button id="btn-next-screen" onclick="nextScreen()" disabled class="bg-gray-600 text-gray-300 font-bold py-2 px-6 rounded opacity-50 cursor-not-allowed transition duration-300">
+                Next <i class="fas fa-arrow-right ml-2"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Screen 7: Matching Test -->
+    <div id="screen-7" class="screen hidden flex flex-col h-full w-full absolute top-0 left-0 z-50 bg-dark p-6">
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h1 class="text-2xl font-bold text-primaryLight">Matching Test</h1>
+                <p class="text-gray-400">Tap on an English term and a Vietnamese term to match the correct pair.</p>
+            </div>
+            <div class="bg-panel px-6 py-3 rounded-lg border border-primary/50 text-right">
+                <div class="text-lg">Score: <span id="game-score" class="font-bold text-green-400">0</span></div>
+                <div class="text-lg">Time: <span id="game-time" class="font-bold text-yellow-400">00:00</span></div>
+            </div>
+        </div>
+        
+        <div class="flex-grow flex gap-8 max-w-5xl mx-auto w-full">
+            <div id="en-col" class="flex-1 flex flex-col gap-3"></div>
+            <div id="vi-col" class="flex-1 flex flex-col gap-3"></div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <!-- Modal Vocabulary Card -->
+    <div id="vocab-modal" class="hidden fixed inset-0 bg-black/80 z-[100] flex items-center justify-center backdrop-blur-sm">
+        <div id="vocab-card" class="bg-panel p-6 rounded-xl shadow-2xl border border-primary w-full max-w-sm text-center relative">
+            <!-- Content injected via JS -->
+        </div>
+    </div>
+
+    <!-- Modal Game Summary -->
+    <div id="summary-modal" class="hidden fixed inset-0 bg-black/90 z-[100] flex items-center justify-center">
+        <div class="bg-panel p-8 rounded-xl shadow-2xl border border-primary w-full max-w-md text-center">
+            <h2 class="text-3xl font-bold text-primaryLight mb-4">Test Completed!</h2>
+            <div class="text-xl mb-2">Final Score: <span id="final-score" class="font-bold text-green-400">0</span></div>
+            <div class="text-xl mb-6">Time: <span id="final-time" class="font-bold text-yellow-400">00:00</span></div>
+            
+            <div id="mistakes-container" class="mb-6 text-left hidden">
+                <h3 class="text-red-400 font-bold mb-2">Words to review:</h3>
+                <ul id="mistakes-list" class="list-disc pl-5 text-sm text-gray-300 h-24 overflow-y-auto"></ul>
+            </div>
+            
+            <div class="flex flex-col gap-3">
+                <button onclick="viewAllVocab()" class="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded transition">View all vocabulary</button>
+                <button onclick="restartApp()" class="bg-primary hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition">Restart</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal All Vocabulary -->
+    <div id="all-vocab-modal" class="hidden fixed inset-0 bg-black/90 z-[110] flex items-center justify-center">
+        <div class="bg-panel p-6 rounded-xl shadow-2xl border border-primary w-full max-w-lg relative flex flex-col max-h-[80vh]">
+            <button onclick="closeAllVocab()" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+            <h2 class="text-2xl font-bold text-primaryLight mb-4 text-center">Vocabulary List</h2>
+            <div id="all-vocab-list" class="overflow-y-auto flex-grow space-y-2 pr-2"></div>
+        </div>
+    </div>
+
+    <!-- Modal Password for Teacher Dashboard -->
+    <div id="password-modal" class="hidden fixed inset-0 bg-black/90 z-[120] flex items-center justify-center backdrop-blur-sm">
+        <div class="bg-panel p-6 rounded-xl shadow-2xl border border-primary w-full max-w-sm text-center relative">
+            <h2 class="text-2xl font-bold text-primaryLight mb-4">Teacher Access</h2>
+            <input type="password" id="teacher-password" placeholder="Enter Password" class="w-full bg-dark border border-gray-600 rounded p-3 text-white focus:outline-none focus:border-primary mb-2" onkeydown="if(event.key === 'Enter') verifyTeacherPassword()">
+            <p id="password-error" class="text-danger mb-4 text-sm hidden">Incorrect password!</p>
+            <div class="flex gap-3 mt-4">
+                <button onclick="closePasswordModal()" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 rounded transition">Cancel</button>
+                <button onclick="verifyTeacherPassword()" class="flex-1 bg-primary hover:bg-blue-600 text-white font-bold py-2 rounded transition">Login</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <!-- Firebase Integration -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global Firebase state
+        let db, auth, currentUser;
+        
+        // In-memory fallback cho việc test local (nếu không có Firebase)
+        let sessionResults = [];
+
+        // Đã xóa khai báo firebaseConfig mặc định cũ đi
+        const firebaseConfig = {
+            apiKey: "AIzaSyBOdPskXfeTfApraw6wI8Zh8qm2knv0AV0",
+            authDomain: "regular-triangular-pyramids.firebaseapp.com",
+            databaseURL: "https://regular-triangular-pyramids-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "regular-triangular-pyramids",
+            storageBucket: "regular-triangular-pyramids.firebasestorage.app",
+            messagingSenderId: "600782634849",
+            appId: "1:600782634849:web:7770cc824d38bca05a0f20",
+            measurementId: "G-4MC5HDXTKR"
+        };
+
+        const initFirebase = async () => {
+            if (firebaseConfig.apiKey === "YOUR_API_KEY") {
+                console.warn("Chưa cấu hình API Key thật. Đang chạy ở chế độ bộ nhớ tạm (local mode).");
+                return;
+            }
+            try {
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                // Đăng nhập ẩn danh tự động cho học sinh
+                await signInAnonymously(auth);
+                
+                onAuthStateChanged(auth, (user) => {
+                    currentUser = user;
+                });
+            } catch (err) {
+                console.error("Firebase init failed:", err);
+            }
+        };
+
+        // Initialize immediately
+        initFirebase();
+
+        // --- Data ---
+        const vocabulary = {
+            base: { en: "Base", pron: "/beɪs/", vi: "Mặt đáy" },
+            lateral_face: { en: "Lateral face", pron: "/ˈlætərəl feɪs/", vi: "Mặt bên" },
+            base_edge: { en: "Base edge", pron: "/beɪs ɛdʒ/", vi: "Cạnh đáy" },
+            lateral_edge: { en: "Lateral edge", pron: "/ˈlætərəl ɛdʒ/", vi: "Cạnh bên" },
+            apex: { en: "Apex", pron: "/ˈeɪpɛks/", vi: "Đỉnh" },
+            height: { en: "Height", pron: "/haɪt/", vi: "Đường cao" },
+            slant_height: { en: "Slant height", pron: "/slænt haɪt/", vi: "Trung đoạn" },
+            regular_pyramid: { en: "Regular triangular pyramid", pron: "/ˈrɛɡjʊlər traɪˈæŋɡjʊlər ˈpɪrəmɪd/", vi: "Hình chóp tam giác đều", desc: "A regular triangular pyramid is a 3D shape with a base that is an <span class='vocab-link' onclick='showSubModal(\"equilateral\")'>equilateral triangle</span> and three lateral faces that are <span class='vocab-link' onclick='showSubModal(\"isosceles\")'>congruent isosceles triangles</span>." },
+            equilateral: { en: "Equilateral triangle", pron: "/ˌiːkwɪˈlætərəl ˈtraɪæŋɡəl/", vi: "Tam giác đều" },
+            isosceles: { en: "Congruent isosceles triangles", pron: "/ˈkɒŋɡruənt aɪˈsɒsəliːz ˈtraɪæŋɡəlz/", vi: "Các tam giác cân bằng nhau" }
+        };
+
+        // --- State ---
+        let currentScreenId = 1;
+        let studentInfo = {};
+        let scene, camera, renderer, controls;
+        let hotspotsData = []; 
+        let activeHotspotsCount = 0;
+        let completedHotspotsCount = 0;
+        
+        // Game State
+        let gameScore = 0;
+        let gameSeconds = 0;
+        let gameInterval;
+        let selectedEnBtn = null;
+        let selectedViBtn = null;
+        let matchedCount = 0;
+        let mistakes = new Set();
+        let totalPairs = 0;
+        let currentMatchingPart = 1;
+        const part1Keys = ['base', 'lateral_face', 'base_edge', 'lateral_edge'];
+        const part2Keys = ['apex', 'height', 'slant_height', 'regular_pyramid', 'equilateral'];
+
+        // Base geometry constants
+        const R = 3; 
+        const H = 4; 
+        const vApex = new THREE.Vector3(0, H/2, 0);
+        const v1 = new THREE.Vector3(0, -H/2, R);
+        const v2 = new THREE.Vector3(R * Math.sqrt(3)/2, -H/2, -R/2);
+        const v3 = new THREE.Vector3(-R * Math.sqrt(3)/2, -H/2, -R/2);
+        const vBaseCenter = new THREE.Vector3(0, -H/2, 0);
+
+        // Export methods to global window space (needed because type="module")
+        window.startApp = startApp;
+        window.nextScreen = nextScreen;
+        window.playPronunciation = playPronunciation;
+        window.showSubModal = showSubModal;
+        window.restoreMainModal = restoreMainModal;
+        window.finishHotspot = finishHotspot;
+        window.viewAllVocab = viewAllVocab;
+        window.closeAllVocab = closeAllVocab;
+        window.restartApp = restartApp;
+        window.openTeacherDashboard = openTeacherDashboard;
+        window.closeTeacherDashboard = closeTeacherDashboard;
+        window.closePasswordModal = closePasswordModal;
+        window.verifyTeacherPassword = verifyTeacherPassword;
+
+        // --- Audio ---
+        function playPronunciation(text) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'en-US';
+                utterance.rate = 0.9;
+                window.speechSynthesis.speak(utterance);
+            } else {
+                alert("Sorry, your browser doesn't support text to speech!");
+            }
+        }
+
+        // --- Navigation ---
+        function startApp() {
+            const name = document.getElementById('student-name').value;
+            const id = document.getElementById('student-id').value;
+            const cls = document.getElementById('student-class').value;
+            
+            if(!name || !id || !cls) {
+                document.getElementById('login-error').classList.remove('hidden');
+                return;
+            }
+            
+            studentInfo = { name, id, cls };
+            document.getElementById('screen-1').classList.add('hidden');
+            document.getElementById('3d-screen-container').classList.remove('hidden');
+            
+            init3D();
+            loadScreen(2);
+        }
+
+        function loadScreen(screenNum) {
+            currentScreenId = screenNum;
+            completedHotspotsCount = 0;
+            activeHotspotsCount = 0;
+            disableNextBtn();
+            clearSceneExtras();
+            clearHotspots();
+
+            switch(screenNum) {
+                case 2: setupScreen2(); break;
+                case 3: setupScreen3(); break;
+                case 4: setupScreen4(); break;
+                case 6: setupScreen6(); break;
+                case 7:
+                    document.getElementById('3d-screen-container').classList.add('hidden');
+                    document.getElementById('screen-7').classList.remove('hidden');
+                    startMatchingGame();
+                    return;
+            }
+        }
+
+        function nextScreen() {
+            if(currentScreenId === 2) loadScreen(3);
+            else if(currentScreenId === 3) loadScreen(4);
+            else if(currentScreenId === 4) loadScreen(6);
+            else if(currentScreenId === 6) loadScreen(7);
+        }
+
+        function enableNextBtn() {
+            const btn = document.getElementById('btn-next-screen');
+            btn.disabled = false;
+            btn.classList.remove('bg-gray-600', 'text-gray-300', 'opacity-50', 'cursor-not-allowed');
+            btn.classList.add('bg-primary', 'hover:bg-blue-600', 'text-white');
+        }
+
+        function disableNextBtn() {
+            const btn = document.getElementById('btn-next-screen');
+            btn.disabled = true;
+            btn.classList.add('bg-gray-600', 'text-gray-300', 'opacity-50', 'cursor-not-allowed');
+            btn.classList.remove('bg-primary', 'hover:bg-blue-600', 'text-white');
+        }
+
+        function restartApp() {
+            location.reload();
+        }
+
+        // --- 3D Setup ---
+        function init3D() {
+            if(scene) return; // Prevent double init
+            const container = document.getElementById('canvas-container');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0f172a); 
+
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(8, 6, 8);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(10, 20, 10);
+            scene.add(dirLight);
+
+            createPyramid();
+
+            window.addEventListener('resize', onWindowResize, false);
+            animate();
+        }
+
+        let pyramidMesh, edgesMesh;
+        let extrasGroup = new THREE.Group();
+
+        function createPyramid() {
+            const geometry = new THREE.BufferGeometry();
+            const vertices = new Float32Array([
+                v1.x, v1.y, v1.z,  v2.x, v2.y, v2.z,  v3.x, v3.y, v3.z,
+                vApex.x, vApex.y, vApex.z,  v1.x, v1.y, v1.z,  v2.x, v2.y, v2.z,
+                vApex.x, vApex.y, vApex.z,  v2.x, v2.y, v2.z,  v3.x, v3.y, v3.z,
+                vApex.x, vApex.y, vApex.z,  v3.x, v3.y, v3.z,  v1.x, v1.y, v1.z,
+            ]);
+            geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+            geometry.computeVertexNormals();
+
+            const material = new THREE.MeshPhongMaterial({ 
+                color: 0x1e3a8a,
+                transparent: true,
+                opacity: 0.85,
+                side: THREE.DoubleSide,
+                flatShading: true
+            });
+            
+            pyramidMesh = new THREE.Mesh(geometry, material);
+            scene.add(pyramidMesh);
+
+            const edgesGeo = new THREE.EdgesGeometry(geometry);
+            const edgesMat = new THREE.LineBasicMaterial({ color: 0x60a5fa, linewidth: 2 });
+            edgesMesh = new THREE.LineSegments(edgesGeo, edgesMat);
+            scene.add(edgesMesh);
+            
+            scene.add(extrasGroup);
+        }
+
+        function clearSceneExtras() {
+            while(extrasGroup.children.length > 0){ 
+                extrasGroup.remove(extrasGroup.children[0]); 
+            }
+        }
+
+        function onWindowResize() {
+            if(!camera) return;
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            updateHotspotPositions();
+            renderer.render(scene, camera);
+        }
+
+        // --- Screen Setup Logic ---
+        function setupScreen2() {
+            addHotspot(vBaseCenter.clone().add(new THREE.Vector3(0,-0.1,0)), 'base');
+            const faceCenter = new THREE.Vector3().addVectors(vApex, v1).add(v2).divideScalar(3);
+            addHotspot(faceCenter, 'lateral_face');
+        }
+
+        function setupScreen3() {
+            const baseEdgeMid = new THREE.Vector3().addVectors(v1, v2).multiplyScalar(0.5);
+            addHotspot(baseEdgeMid, 'base_edge');
+            const latEdgeMid = new THREE.Vector3().addVectors(vApex, v1).multiplyScalar(0.5);
+            addHotspot(latEdgeMid, 'lateral_edge');
+        }
+
+        function setupScreen4() {
+            const baseEdgeMid = new THREE.Vector3().addVectors(v1, v2).multiplyScalar(0.5);
+            const matDashed = new THREE.LineDashedMaterial({ color: 0xffffff, dashSize: 0.2, gapSize: 0.1 });
+            
+            const geoHeight = new THREE.BufferGeometry().setFromPoints([vApex, vBaseCenter]);
+            const lineHeight = new THREE.Line(geoHeight, matDashed);
+            lineHeight.computeLineDistances();
+            extrasGroup.add(lineHeight);
+
+            const geoSlant = new THREE.BufferGeometry().setFromPoints([vApex, baseEdgeMid]);
+            const lineSlant = new THREE.Line(geoSlant, matDashed);
+            lineSlant.computeLineDistances();
+            extrasGroup.add(lineSlant);
+            
+            const geoFloor = new THREE.BufferGeometry().setFromPoints([vBaseCenter, baseEdgeMid]);
+            const lineFloor = new THREE.Line(geoFloor, matDashed);
+            lineFloor.computeLineDistances();
+            extrasGroup.add(lineFloor);
+
+            addHotspot(vApex.clone().add(new THREE.Vector3(0,0.2,0)), 'apex');
+            addHotspot(new THREE.Vector3().addVectors(vApex, vBaseCenter).multiplyScalar(0.5), 'height');
+            addHotspot(new THREE.Vector3().addVectors(vApex, baseEdgeMid).multiplyScalar(0.5), 'slant_height');
+        }
+
+        function setupScreen6() {
+            addHotspot(new THREE.Vector3(0, 0, 0), 'regular_pyramid', true);
+        }
+
+        // --- Hotspot Management ---
+        function addHotspot(position3D, vocabKey, isComplexModal = false) {
+            activeHotspotsCount++;
+            const el = document.createElement('div');
+            el.className = 'hotspot active pointer-events-auto';
+            el.onclick = () => handleHotspotClick(el, vocabKey, isComplexModal);
+            
+            document.getElementById('hotspot-container').appendChild(el);
+            hotspotsData.push({ element: el, position3D: position3D, vocabKey: vocabKey, completed: false });
+        }
+
+        function clearHotspots() {
+            document.getElementById('hotspot-container').innerHTML = '';
+            hotspotsData = [];
+        }
+
+        function updateHotspotPositions() {
+            if(hotspotsData.length === 0) return;
+            const tempV = new THREE.Vector3();
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+
+            hotspotsData.forEach(hs => {
+                tempV.copy(hs.position3D);
+                tempV.project(camera);
+                
+                if (tempV.z > 1) {
+                    hs.element.style.display = 'none';
+                    return;
+                }
+                
+                const x = (tempV.x * .5 + .5) * w;
+                const y = (tempV.y * -.5 + .5) * h;
+                
+                hs.element.style.display = 'block';
+                hs.element.style.left = `${x}px`;
+                hs.element.style.top = `${y}px`;
+            });
+        }
+
+        function handleHotspotClick(element, vocabKey, isComplex) {
+            const data = vocabulary[vocabKey];
+            
+            let html = `
+                <h3 class="text-2xl font-bold text-primaryLight mb-2">${data.en}</h3>
+                <div class="flex items-center justify-center gap-3 mb-4 text-gray-300">
+                    <span class="text-lg italic">${data.pron}</span>
+                    <button onclick="playPronunciation('${data.en}')" class="text-primary hover:text-white transition"><i class="fas fa-volume-up text-xl"></i></button>
+                </div>
+                <div class="text-xl mb-6 font-semibold">${data.vi}</div>
+            `;
+            
+            if(isComplex && data.desc) {
+                html += `<div class="text-md mb-6 text-gray-300 leading-relaxed text-left border-t border-gray-600 pt-4">${data.desc}</div>`;
+            }
+            
+            html += `<button onclick="finishHotspot('${vocabKey}')" class="w-full bg-primary hover:bg-blue-600 text-white font-bold py-2 rounded transition">Finish</button>`;
+            
+            const card = document.getElementById('vocab-card');
+            card.innerHTML = html;
+            card.dataset.mainHtml = html;
+            
+            document.getElementById('vocab-modal').classList.remove('hidden');
+        }
+
+        function showSubModal(subKey) {
+            const data = vocabulary[subKey];
+            let html = `
+                <h3 class="text-2xl font-bold text-primaryLight mb-2">${data.en}</h3>
+                <div class="flex items-center justify-center gap-3 mb-4 text-gray-300">
+                    <span class="text-lg italic">${data.pron}</span>
+                    <button onclick="playPronunciation('${data.en}')" class="text-primary hover:text-white transition"><i class="fas fa-volume-up text-xl"></i></button>
+                </div>
+                <div class="text-xl mb-6 font-semibold">${data.vi}</div>
+                <button onclick="restoreMainModal()" class="w-full bg-slate-600 hover:bg-slate-500 text-white font-bold py-2 rounded transition"><i class="fas fa-arrow-left mr-2"></i> Back</button>
+            `;
+            document.getElementById('vocab-card').innerHTML = html;
+        }
+
+        function restoreMainModal() {
+            const card = document.getElementById('vocab-card');
+            card.innerHTML = card.dataset.mainHtml;
+        }
+
+        function finishHotspot(vocabKey) {
+            document.getElementById('vocab-modal').classList.add('hidden');
+            const hs = hotspotsData.find(h => h.vocabKey === vocabKey);
+            if(hs && !hs.completed) {
+                hs.completed = true;
+                hs.element.classList.remove('active');
+                hs.element.classList.add('completed');
+                completedHotspotsCount++;
+                
+                if(completedHotspotsCount >= activeHotspotsCount) {
+                    enableNextBtn();
+                }
+            }
+        }
+
+        // --- Matching Game Logic ---
+        function startMatchingGame() {
+            gameScore = 0;
+            gameSeconds = 0;
+            matchedCount = 0;
+            mistakes.clear();
+            selectedEnBtn = null;
+            selectedViBtn = null;
+            currentMatchingPart = 1;
+            
+            document.getElementById('game-score').innerText = '0';
+            
+            if (gameInterval) clearInterval(gameInterval);
+            gameInterval = setInterval(() => {
+                gameSeconds++;
+                const m = Math.floor(gameSeconds / 60).toString().padStart(2, '0');
+                const s = (gameSeconds % 60).toString().padStart(2, '0');
+                document.getElementById('game-time').innerText = `${m}:${s}`;
+            }, 1000);
+
+            renderMatchingBoard();
+        }
+
+        function renderMatchingBoard() {
+            const keysToPlay = currentMatchingPart === 1 ? part1Keys : part2Keys;
+            totalPairs = keysToPlay.length;
+            
+            let enItems = keysToPlay.map(k => ({ key: k, text: vocabulary[k].en }));
+            let viItems = keysToPlay.map(k => ({ key: k, text: vocabulary[k].vi }));
+            
+            enItems = enItems.sort(() => Math.random() - 0.5);
+            viItems = viItems.sort(() => Math.random() - 0.5);
+            
+            const enCol = document.getElementById('en-col');
+            const viCol = document.getElementById('vi-col');
+            enCol.innerHTML = '';
+            viCol.innerHTML = '';
+            
+            enItems.forEach(item => {
+                const btn = document.createElement('button');
+                btn.className = 'w-full bg-blue-800 hover:bg-blue-700 border-2 border-transparent text-white font-semibold py-4 px-4 rounded shadow transition duration-200 text-lg';
+                btn.innerText = item.text;
+                btn.dataset.key = item.key;
+                btn.dataset.type = 'en';
+                btn.onclick = () => handleMatchClick(btn);
+                enCol.appendChild(btn);
+            });
+            
+            viItems.forEach(item => {
+                const btn = document.createElement('button');
+                btn.className = 'w-full bg-blue-600 hover:bg-blue-500 border-2 border-transparent text-white font-semibold py-4 px-4 rounded shadow transition duration-200 text-lg';
+                btn.innerText = item.text;
+                btn.dataset.key = item.key;
+                btn.dataset.type = 'vi';
+                btn.onclick = () => handleMatchClick(btn);
+                viCol.appendChild(btn);
+            });
+        }
+
+        function handleMatchClick(btn) {
+            if(btn.disabled) return;
+            
+            if (btn === selectedEnBtn) {
+                btn.classList.remove('bg-gray-500', 'border-gray-400');
+                btn.classList.add('bg-blue-800');
+                selectedEnBtn = null;
+                return;
+            }
+            if (btn === selectedViBtn) {
+                btn.classList.remove('bg-gray-500', 'border-gray-400');
+                btn.classList.add('bg-blue-600');
+                selectedViBtn = null;
+                return;
+            }
+
+            btn.classList.remove('bg-blue-800', 'bg-blue-600', 'hover:bg-blue-700', 'hover:bg-blue-500');
+            btn.classList.add('bg-gray-500', 'border-gray-400');
+            
+            if(btn.dataset.type === 'en') {
+                if(selectedEnBtn) {
+                    selectedEnBtn.classList.remove('bg-gray-500', 'border-gray-400');
+                    selectedEnBtn.classList.add('bg-blue-800', 'hover:bg-blue-700');
+                }
+                selectedEnBtn = btn;
+            } else {
+                if(selectedViBtn) {
+                    selectedViBtn.classList.remove('bg-gray-500', 'border-gray-400');
+                    selectedViBtn.classList.add('bg-blue-600', 'hover:bg-blue-500');
+                }
+                selectedViBtn = btn;
+            }
+            
+            checkMatch();
+        }
+
+        function checkMatch() {
+             if(selectedEnBtn && selectedViBtn) {
+                const enKey = selectedEnBtn.dataset.key;
+                const viKey = selectedViBtn.dataset.key;
+                const btn1 = selectedEnBtn;
+                const btn2 = selectedViBtn;
+                
+                btn1.disabled = true;
+                btn2.disabled = true;
+                
+                if(enKey === viKey) {
+                    btn1.className = 'w-full bg-success text-white font-semibold py-4 px-4 rounded shadow opacity-60 cursor-default transition duration-300';
+                    btn2.className = 'w-full bg-success text-white font-semibold py-4 px-4 rounded shadow opacity-60 cursor-default transition duration-300';
+                    
+                    updateScore(10);
+                    matchedCount++;
+                    selectedEnBtn = null;
+                    selectedViBtn = null;
+                    
+                    if(matchedCount === totalPairs) {
+                        if (currentMatchingPart === 1) {
+                            currentMatchingPart = 2;
+                            matchedCount = 0;
+                            setTimeout(() => renderMatchingBoard(), 600);
+                        } else {
+                            setTimeout(() => endGame(), 600);
+                        }
+                    }
+                } else {
+                    mistakes.add(enKey);
+                    
+                    btn1.className = 'w-full bg-danger text-white font-semibold py-4 px-4 rounded shadow transition duration-300';
+                    btn2.className = 'w-full bg-danger text-white font-semibold py-4 px-4 rounded shadow transition duration-300';
+                    
+                    updateScore(-5);
+                    
+                    setTimeout(() => {
+                        btn1.className = 'w-full bg-blue-800 hover:bg-blue-700 border-2 border-transparent text-white font-semibold py-4 px-4 rounded shadow transition duration-200 text-lg';
+                        btn2.className = 'w-full bg-blue-600 hover:bg-blue-500 border-2 border-transparent text-white font-semibold py-4 px-4 rounded shadow transition duration-200 text-lg';
+                        btn1.disabled = false;
+                        btn2.disabled = false;
+                        if(selectedEnBtn === btn1) selectedEnBtn = null;
+                        if(selectedViBtn === btn2) selectedViBtn = null;
+                    }, 1000); 
+                }
+            }
+        }
+
+        function updateScore(points) {
+            gameScore += points;
+            const scoreEl = document.getElementById('game-score');
+            scoreEl.innerText = gameScore;
+            scoreEl.className = gameScore >= 0 ? 'font-bold text-green-400' : 'font-bold text-red-400';
+        }
+
+        function endGame() {
+            clearInterval(gameInterval);
+            document.getElementById('final-score').innerText = gameScore;
+            document.getElementById('final-score').className = gameScore >= 0 ? 'font-bold text-green-400' : 'font-bold text-red-400';
+            const finalTimeStr = document.getElementById('game-time').innerText;
+            document.getElementById('final-time').innerText = finalTimeStr;
+            
+            const mistakesArr = [];
+            if(mistakes.size > 0) {
+                const mistakesContainer = document.getElementById('mistakes-container');
+                const list = document.getElementById('mistakes-list');
+                list.innerHTML = '';
+                mistakes.forEach(key => {
+                    const wordStr = `${vocabulary[key].en} - ${vocabulary[key].vi}`;
+                    mistakesArr.push(wordStr);
+                    const li = document.createElement('li');
+                    li.innerText = wordStr;
+                    list.appendChild(li);
+                });
+                mistakesContainer.classList.remove('hidden');
+            }
+            
+            document.getElementById('summary-modal').classList.remove('hidden');
+
+            const studentData = {
+                name: studentInfo.name || "Unknown",
+                studentId: studentInfo.id || "Unknown",
+                className: studentInfo.cls || "Unknown",
+                score: gameScore,
+                time: finalTimeStr,
+                mistakes: mistakesArr.join(", "), 
+                timestamp: new Date().getTime() 
+            };
+
+            // Lưu vào in-memory để test local
+            sessionResults.push(studentData);
+
+            // Save payload to Firebase
+            if (db && currentUser) {
+                const colRef = collection(db, 'studentResults');
+                addDoc(colRef, studentData).catch(err => console.error("Could not save to Firebase:", err));
+            }
+        }
+
+        // --- All Vocabulary Modal ---
+        function viewAllVocab() {
+            const list = document.getElementById('all-vocab-list');
+            list.innerHTML = '';
+            
+            Object.values(vocabulary).forEach(data => {
+                const item = document.createElement('div');
+                item.className = 'bg-dark p-3 rounded border border-gray-700 flex justify-between items-center';
+                item.innerHTML = `
+                    <div>
+                        <div class="font-bold text-primaryLight text-lg">${data.en}</div>
+                        <div class="text-sm text-gray-400">${data.pron}</div>
+                        <div class="text-gray-200">${data.vi}</div>
+                    </div>
+                    <button onclick="playPronunciation('${data.en}')" class="text-primary hover:text-white p-2 rounded-full hover:bg-slate-700 transition">
+                        <i class="fas fa-volume-up"></i>
+                    </button>
+                `;
+                list.appendChild(item);
+            });
+            
+            document.getElementById('all-vocab-modal').classList.remove('hidden');
+        }
+
+        function closeAllVocab() {
+            document.getElementById('all-vocab-modal').classList.add('hidden');
+        }
+
+        // --- Teacher Dashboard Logic ---
+        let dashboardUnsubscribe = null;
+
+        function openTeacherDashboard() {
+            document.getElementById('teacher-password').value = '';
+            document.getElementById('password-error').classList.add('hidden');
+            document.getElementById('password-modal').classList.remove('hidden');
+            setTimeout(() => document.getElementById('teacher-password').focus(), 100);
+        }
+
+        function closePasswordModal() {
+            document.getElementById('password-modal').classList.add('hidden');
+        }
+
+        function verifyTeacherPassword() {
+            const pass = document.getElementById('teacher-password').value;
+            // Bạn có thể đổi mật khẩu ở dòng bên dưới (hiện tại là "teacher123")
+            if (pass === 'teacher123') {
+                document.getElementById('password-modal').classList.add('hidden');
+                showDashboardContent();
+            } else {
+                document.getElementById('password-error').classList.remove('hidden');
+            }
+        }
+        
+        function renderDashboardData(results, tbody, isLocal = false) {
+            if (results.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-gray-400">No student records found yet.</td></tr>';
+                if (isLocal) {
+                    tbody.innerHTML += '<tr><td colspan="6" class="p-2 text-center text-yellow-500 text-sm bg-yellow-900/20">Running in local mode. Database is disconnected.</td></tr>';
+                }
+                return;
+            }
+
+            // Sort locally by newest first
+            results.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+            tbody.innerHTML = ''; // clear loading state
+            results.forEach(data => {
+                const mistakeCol = data.mistakes ? `<span class="text-red-400 font-semibold">${data.mistakes}</span>` : `<span class="text-green-500">None! 🎉</span>`;
+                tbody.innerHTML += `
+                    <tr class="border-b border-gray-700 hover:bg-slate-800 transition">
+                        <td class="p-4">${data.name}</td>
+                        <td class="p-4">${data.studentId}</td>
+                        <td class="p-4">${data.className}</td>
+                        <td class="p-4">${data.time}</td>
+                        <td class="p-4 font-bold ${data.score >= 0 ? 'text-green-400' : 'text-red-400'}">${data.score}</td>
+                        <td class="p-4 text-sm">${mistakeCol}</td>
+                    </tr>
+                `;
+            });
+            
+            if (isLocal) {
+                tbody.innerHTML += '<tr><td colspan="6" class="p-2 text-center text-yellow-500 text-sm bg-yellow-900/20"><i class="fas fa-exclamation-triangle mr-2"></i>Running in local mode. Data will be lost when page reloads.</td></tr>';
+            }
+        }
+
+        function showDashboardContent() {
+            document.getElementById('screen-1').classList.add('hidden');
+            document.getElementById('screen-dashboard').classList.remove('hidden');
+            
+            const tbody = document.getElementById('dashboard-tbody');
+            
+            if (db && currentUser) {
+                tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-gray-400"><i class="fas fa-circle-notch fa-spin mr-2"></i>Loading real-time data...</td></tr>';
+                const colRef = collection(db, 'studentResults');
+                
+                dashboardUnsubscribe = onSnapshot(colRef, (snapshot) => {
+                    const results = [];
+                    snapshot.forEach(doc => results.push(doc.data()));
+                    renderDashboardData(results, tbody, false);
+                }, (error) => {
+                    console.error("Dashboard error:", error);
+                    tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-red-400"><i class="fas fa-exclamation-triangle mr-2"></i>Error loading data. Permission denied or connection issue.</td></tr>';
+                });
+            } else {
+                // Hiển thị dữ liệu lưu tạm trong phiên bản test local
+                renderDashboardData(sessionResults, tbody, true);
+            }
+        }
+
+        function closeTeacherDashboard() {
+            if (dashboardUnsubscribe) {
+                dashboardUnsubscribe();
+                dashboardUnsubscribe = null;
+            }
+            document.getElementById('screen-dashboard').classList.add('hidden');
+            document.getElementById('screen-1').classList.remove('hidden');
+        }
+
+    </script>
+</body>
+</html>
